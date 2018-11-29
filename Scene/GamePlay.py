@@ -7,16 +7,17 @@ class Scene_GamePlay(__Base__):
     
     def __init__(self):
         
-        self.font = pygame.pgSys.Font
+
             
         #if (pygame.pgSys.RenderEnabled):
         #else:
 
         #Box settings
-        self.Box_Size = 20
+        self.Box_Size = 30
+        self.font = pygame.font.SysFont("Calibri", 24)
         self.Box_Border = 3
         self.Box_Size_Rect = (self.Box_Size, self.Box_Size)
-        self.Box_Center_Rect =(self.Box_Border, self.Box_Border, self.Box_Size - self.Box_Border*2, self.Box_Size - self.Box_Border*2)
+        self.Box_Center_Rect = (self.Box_Border, self.Box_Border, self.Box_Size - self.Box_Border*2, self.Box_Size - self.Box_Border*2)
 
         #Field settings
         self.Field = [] #0~8 = minecount, 10 = mine
@@ -24,6 +25,8 @@ class Scene_GamePlay(__Base__):
         self.FieldSize = (30,16)
         self.MineCount = 99
         self.BoxLeft = self.FieldSize[0]*self.FieldSize[1]
+
+
         #Colors based on windows version
         FontColors = [  [0, 0, 200]    ,[0 , 200, 0]  ,[200, 0, 0],
                         [200, 0, 200]  ,[200, 100, 50],[0, 200, 200],
@@ -67,9 +70,10 @@ class Scene_GamePlay(__Base__):
         self.Image_Marked.blit(marked, ((self.Box_Size-marked.get_width())/2,(self.Box_Size-marked.get_height())/2))
 
         #Image - PlayField
-        self.Image_PlayField = pygame.Surface((self.FieldSize[0] * self.Box_Size , self.FieldSize[1] * self.Box_Size))
-        self.Image_PlayFieldCovered = pygame.Surface((self.FieldSize[0] * self.Box_Size , self.FieldSize[1] * self.Box_Size), pygame.SRCALPHA)
-        self.Image_PlayFieldGrid = pygame.Surface((self.FieldSize[0] * self.Box_Size , self.FieldSize[1] * self.Box_Size), pygame.SRCALPHA)
+        field_rect = (self.FieldSize[0] * self.Box_Size , self.FieldSize[1] * self.Box_Size)
+        self.Image_PlayField = pygame.Surface(field_rect)
+        self.Image_PlayFieldCovered = pygame.Surface(field_rect, pygame.SRCALPHA)
+        self.Image_PlayFieldGrid = pygame.Surface(field_rect, pygame.SRCALPHA)
         
         self.GameOver = False
         self.DoubleButton = False
@@ -77,28 +81,22 @@ class Scene_GamePlay(__Base__):
 
         #Field Initalize
         self.Field_Initalize()
-        
+
+    def borderCheck(self, x, y, x_offset, y_offset):
+        if (x_offset == 0 and y_offset == 0):
+            return True
+        if (x + x_offset < 0 or x + x_offset >= self.FieldSize[0] or y + y_offset < 0 or y + y_offset >= self.FieldSize[1]):
+            return True
+
+        return False
+    
     def Field_Initalize(self, pos = None):
         #Reset list everytime incase of field size change
-        self.Field = []
-        self.FieldCovered = []
+        #I don't even know lists can work like this
+        self.Field = [[0 for w in range(self.FieldSize[0])] for h in range(self.FieldSize[1])]
+        self.FieldCovered = [[1 for w in range(self.FieldSize[0])] for h in range(self.FieldSize[1])]
         self.GameStart = False
         self.BoxLeft = self.FieldSize[0]*self.FieldSize[1]
-        for y in range(self.FieldSize[1]):
-            '''
-            Don't use [[0]*self.FieldSize[0]] * self.FieldSize[1] here, which will cause bug
-            try this:
-            a = [[0]*10]*10
-            a[1][1] = 1
-            print(a) # result: a[0~9][1] = 1
-            '''
-            a = []
-            b = []
-            for x in range(self.FieldSize[0]):
-                a.append(0)
-                b.append(1)
-            self.Field.append(a)
-            self.FieldCovered.append(b)
 
         #Setup mines
         i = self.MineCount
@@ -124,9 +122,7 @@ class Scene_GamePlay(__Base__):
                     for y_offset in range(-1,2):
                         for x_offset in range(-1,2):
                             
-                            if (x_offset == 0 and y_offset == 0):
-                                continue
-                            if (x + x_offset < 0 or x + x_offset >= self.FieldSize[0] or y + y_offset < 0 or y + y_offset >= self.FieldSize[1]):
+                            if (self.borderCheck(x,y,x_offset,y_offset)):
                                 continue
                             
                             if (self.Field[y + y_offset][x + x_offset] == 10):
@@ -144,7 +140,6 @@ class Scene_GamePlay(__Base__):
         for x in range(self.FieldSize[0]):
             pygame.draw.line(self.Image_PlayFieldGrid, (0,0,0), (x*self.Box_Size, 0), (x*self.Box_Size, self.FieldSize[0]*self.Box_Size))
 
-            
     def onChange(self):
         pass
 
@@ -241,7 +236,7 @@ class Scene_GamePlay(__Base__):
                             if (self.GameStart):
                                 self.GameOver = True
                             else:
-                                print("*Something wrong* happened, reset field.")
+                                #print("*Something wrong* happened, reset field.")
                                 self.Field_Initalize((x,y))
                             return
                         else:
@@ -251,8 +246,7 @@ class Scene_GamePlay(__Base__):
                 self.DoubleButton = False
                 
     def OpenEmptySpaces(self, x, y):
-        if (x < 0 or x >= self.FieldSize[0] or y < 0 or y >= self.FieldSize[1]):
-            return
+      
         #Open
         if (self.FieldCovered[y][x] == 0):
             return
@@ -260,7 +254,9 @@ class Scene_GamePlay(__Base__):
         self.Image_PlayFieldCovered.fill((255,255,255,0), pygame.Rect(x*self.Box_Size,y*self.Box_Size, self.Box_Size, self.Box_Size))
         
         self.FieldCovered[y][x] = 0
-
+        self.BoxLeft -=1
+        if (not self.GameOver):
+            self.CheckWin()
         #Mines are around, which is dangerous :O
         if (self.Field[y][x] > 0):
             return
@@ -268,13 +264,12 @@ class Scene_GamePlay(__Base__):
         #Open boxes around by recursion
         for y_offset in range(-1,2):
             for x_offset in range(-1,2):
-                if (x_offset == 0 and y_offset == 0):
+
+                if (self.borderCheck(x,y,x_offset,y_offset)):
                     continue
+                            
                 self.OpenEmptySpaces(x + x_offset, y + y_offset)
 
-        if (not self.GameOver):
-            self.CheckWin()
-            
     def CheckWin(self):
         if (self.BoxLeft == self.MineCount):
             print("You Win!")
@@ -282,21 +277,20 @@ class Scene_GamePlay(__Base__):
         elif (self.BoxLeft < self.MineCount):
             #thIs Is ssHould not hAppEn
             print("Wait waht")
-            
+        #print(self.BoxLeft)
+        
     def OpenByFlag(self,x,y):
         Flags = 0
         Num = self.Field[y][x]
 
         for y_offset in range(-1,2):
             for x_offset in range(-1,2):
-                if (x_offset == 0 and y_offset == 0):
+                if (self.borderCheck(x,y,x_offset,y_offset)):
                     continue
 
                 nx = x + x_offset
                 ny = y + y_offset
-                if (nx < 0 or nx >= self.FieldSize[0] or
-                    ny < 0 or ny >= self.FieldSize[1]):
-                    continue
+
                 if (self.FieldCovered[ny][nx] == 2):
                     Flags += 1
 
@@ -305,13 +299,12 @@ class Scene_GamePlay(__Base__):
             for y_offset in range(-1,2):
                 for x_offset in range(-1,2):
                     
-                    if (x_offset == 0 and y_offset == 0):
+                    if (self.borderCheck(x,y,x_offset,y_offset)):
                         continue
 
                     nx = x + x_offset
                     ny = y + y_offset
-                    if (nx < 0 or nx >= self.FieldSize[0] or ny < 0 or ny >= self.FieldSize[1]):
-                        continue                    
+                 
                     if (self.FieldCovered[ny][nx] == 1):
                         self.Image_PlayFieldCovered.fill((255,255,255,0), pygame.Rect( (nx*self.Box_Size,ny*self.Box_Size), self.Box_Size_Rect)  )
                         #Wrong flag!

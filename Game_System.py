@@ -23,7 +23,7 @@ from Scene.__Changer__ import Scene_Changer
 FPS = 60
 
 #Resolution
-WINDOWWIDTH,WINDOWHEIGHT = 800, 600
+WINDOWWIDTH,WINDOWHEIGHT = 1024,600
 
 class Game_System():
     def __init__(self):
