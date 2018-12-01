@@ -6,7 +6,7 @@ class Scene_Intro(__Base__):
     
     def __init__(self):
         
-        img1 = pygame.pgSys.Font.render("xFly Studio", 0, (255,255,255), (0,0,0))
+        img1 = pygame.pgSys.FontLarge.render("xFly Studio", 0, (255,255,255), (0,0,0))
             
         if (pygame.pgSys.RenderEnabled):
             self.Image1 = pygame.render.Sprite(pygame.pgSys.Renderer.load_texture(img1))
@@ -15,9 +15,10 @@ class Scene_Intro(__Base__):
 
         self.Image1_rect = img1.get_rect()
         self.frame = 0
+        self.sound = pygame.pgSys.Audio.Sound("Intro.wav")
         
     def onChange(self):
-        pass
+        self.sound.play()
 
     def onChangeDone(self):
         pass
@@ -26,15 +27,15 @@ class Scene_Intro(__Base__):
         
         self.frame += 1
         #Change scene after 384 frames
-        if (self.frame > 384):
+        if (self.frame > 256):
             pygame.pgSys.ChangeScene(Scene_GamePlay())
             return
 
         #Here shows how a simple "anim like" text works
-        if (self.frame > 255):
-            alpha = max(0, 767-int(self.frame*2))
+        if (self.frame >= 128):
+            alpha = max(0, 511-self.frame*2)
         else:
-            alpha = min(int(self.frame*2), 255)
+            alpha = self.frame*2
 
         if (pygame.pgSys.RenderEnabled):
             self.Image1.alpha = alpha

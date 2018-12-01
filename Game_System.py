@@ -43,6 +43,7 @@ class Game_System():
         #if (SDL2):
             #Old
         self.Font = pygame.font.Font("Fonts/NotoSansCJKtc-Regular.otf", 14)
+        self.FontLarge = pygame.font.Font("Fonts/NotoSansCJKtc-Regular.otf", 32)
         #else:
         #    self.Font = pygame.freetype.Font("Fonts/NotoSansCJKtc-Regular.otf", 14)
 

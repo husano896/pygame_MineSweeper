@@ -2,12 +2,11 @@ from Game_System import *
 from Scene.__Base__ import __Base__
 from Scene.Title import Scene_Title
 import random
+import time
 
 class Scene_GamePlay(__Base__):
     
     def __init__(self):
-        
-
             
         #if (pygame.pgSys.RenderEnabled):
         #else:
@@ -35,9 +34,9 @@ class Scene_GamePlay(__Base__):
         
         #Images Initalize
         self.Image_Uncovered_Items = []
-        self.Image_Covered = pygame.Surface(self.Box_Size_Rect)
-        self.Image_Pressed = pygame.Surface(self.Box_Size_Rect)
-        self.Image_Marked = pygame.Surface(self.Box_Size_Rect)
+        self.Image_Covered = pygame.Surface(self.Box_Size_Rect, pygame.HWSURFACE)
+        self.Image_Pressed = pygame.Surface(self.Box_Size_Rect, pygame.HWSURFACE)
+        self.Image_Marked = pygame.Surface(self.Box_Size_Rect, pygame.HWSURFACE)
 
         #For empty item and number 1~8
         for i in range(0,9):
@@ -71,18 +70,51 @@ class Scene_GamePlay(__Base__):
 
         #Image - PlayField
         field_rect = (self.FieldSize[0] * self.Box_Size , self.FieldSize[1] * self.Box_Size)
-        self.Image_PlayField = pygame.Surface(field_rect)
-        self.Image_PlayFieldCovered = pygame.Surface(field_rect, pygame.SRCALPHA)
-        self.Image_PlayFieldGrid = pygame.Surface(field_rect, pygame.SRCALPHA)
+        self.Image_PlayField = pygame.Surface(field_rect, pygame.HWSURFACE)
+        self.Image_PlayFieldCovered = pygame.Surface(field_rect, pygame.HWSURFACE | pygame.SRCALPHA)
+        self.Image_PlayFieldGrid = pygame.Surface(field_rect, pygame.HWSURFACE | pygame.SRCALPHA)
+
+        #Sound Effects
+        self.Sound_FlagIn = pygame.pgSys.Audio.Sound("FlagIn.wav")
+        self.Sound_FlagOut = pygame.pgSys.Audio.Sound("FlagOut.wav")
+        self.Sound_Lose = pygame.pgSys.Audio.Sound("Lose.wav")
+        self.Sound_Win = pygame.pgSys.Audio.Sound("Win.wav")
+        self.Sound_WrongFlag = pygame.pgSys.Audio.Sound("Wrong.wav")
+
+        #Background Musics
+        self.BGM = ["BGM_1.ogg","BGM_2.ogg","BGM_3.ogg","BGM_5.ogg"]
+        self.BGM_Sequence = random.randint(0, len(self.BGM))
+        self.BGM_EVENT = pygame.USEREVENT + 2
+
+        #Background Images
+        self.Backgrounds = [ pygame.image.load("Graphics/Backgrounds/1.jpg").convert(), pygame.image.load("Graphics/Backgrounds/2.jpg").convert(),
+                             pygame.image.load("Graphics/Backgrounds/3.jpg").convert(), pygame.image.load("Graphics/Backgrounds/4.jpg").convert() ]
         
+        self.CurrentBackground = self.Backgrounds[random.randint(0, len(self.Backgrounds)-1)]
+        
+        #etc
         self.GameOver = False
         self.DoubleButton = False
         self.GameStart = False        
 
+        #Game Stat
+        self.StartTime = 0
+        self.EndTime = 0
+        
         #Field Initalize
         self.Field_Initalize()
 
+    def playBGM(self):
+        #Randomly pick a background
+        self.CurrentBackground = self.Backgrounds[random.randint(0, len(self.Backgrounds)-1)]
+
+        #Play BGM by sequence
+        if (len(self.BGM) > 0):
+            self.BGM_Sequence = (self.BGM_Sequence+1)%len(self.BGM)
+            pygame.pgSys.Audio.playBGM(self.BGM[self.BGM_Sequence], 0, 0.0, self.BGM_EVENT)
+            
     def borderCheck(self, x, y, x_offset, y_offset):
+        
         if (x_offset == 0 and y_offset == 0):
             return True
         if (x + x_offset < 0 or x + x_offset >= self.FieldSize[0] or y + y_offset < 0 or y + y_offset >= self.FieldSize[1]):
@@ -140,21 +172,106 @@ class Scene_GamePlay(__Base__):
         for x in range(self.FieldSize[0]):
             pygame.draw.line(self.Image_PlayFieldGrid, (0,0,0), (x*self.Box_Size, 0), (x*self.Box_Size, self.FieldSize[0]*self.Box_Size))
 
+    def OpenEmptySpaces(self, x, y):
+      
+        #Open
+        if (self.FieldCovered[y][x] == 0):
+            return
+
+        self.Image_PlayFieldCovered.fill((255,255,255,0), pygame.Rect(x*self.Box_Size,y*self.Box_Size, self.Box_Size, self.Box_Size))
+        
+        self.FieldCovered[y][x] = 0
+        self.BoxLeft -=1
+        if (not self.GameOver):
+            self.CheckWin()
+        #Mines are around, which is dangerous :O
+        if (self.Field[y][x] > 0):
+            return
+
+        #Open boxes around by recursion
+        for y_offset in range(-1,2):
+            for x_offset in range(-1,2):
+
+                if (self.borderCheck(x,y,x_offset,y_offset)):
+                    continue
+                            
+                self.OpenEmptySpaces(x + x_offset, y + y_offset)
+
+    def CheckWin(self):
+        if (self.GameOver):
+            return
+        if (self.BoxLeft == self.MineCount):
+            print("You Win!")
+            self.Sound_Win.play()
+            self.GameOver = True
+            self.EndTime = time.time() - self.StartTime
+        elif (self.BoxLeft < self.MineCount):
+            #thIs Is ssHould not hAppEn
+            print("Wait waht")
+        #print(self.BoxLeft)
+
+    def SetLose(self):
+        self.GameOver = True
+        self.Sound_Lose.play()
+        self.EndTime = time.time() - self.StartTime
+        
+    def OpenByFlag(self,x,y):
+        Flags = 0
+        Num = self.Field[y][x]
+
+        for y_offset in range(-1,2):
+            for x_offset in range(-1,2):
+                if (self.borderCheck(x,y,x_offset,y_offset)):
+                    continue
+
+                nx = x + x_offset
+                ny = y + y_offset
+
+                if (self.FieldCovered[ny][nx] == 2):
+                    Flags += 1
+
+        #Matched flag count, try opening boxes around
+        if (Flags == Num):
+            for y_offset in range(-1,2):
+                for x_offset in range(-1,2):
+                    
+                    if (self.borderCheck(x,y,x_offset,y_offset)):
+                        continue
+
+                    nx = x + x_offset
+                    ny = y + y_offset
+                 
+                    if (self.FieldCovered[ny][nx] == 1):
+                        self.Image_PlayFieldCovered.fill((255,255,255,0), pygame.Rect( (nx*self.Box_Size,ny*self.Box_Size), self.Box_Size_Rect)  )
+                        #Wrong flag!
+                        if (self.Field[ny][nx] == 10):
+                            self.SetLose()
+                            self.Sound_WrongFlag.play()
+                        else:
+                            self.OpenEmptySpaces(nx,ny)
+
+        if (not self.GameOver):
+            self.CheckWin()
+            
     def onChange(self):
         pass
 
     def onChangeDone(self):
         #We are handling events in our scene
         pygame.pgSys.Handle_Events_InMain = False
-    
+        self.playBGM()
+
     def update(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 exit()
                 break
-                    
-            if (SDL2):
+            elif event.type == self.BGM_EVENT:
+                #When BGM ends
+                self.playBGM()
+                
+            elif (SDL2):
                 if event.type == pygame.APP_WILLENTERBACKGROUND:
                     sleeping = True
                 #App is awake from background, reinit the display
@@ -162,7 +279,7 @@ class Scene_GamePlay(__Base__):
                     sleeping = False
                     pygame.pgSys.InitDisplay()
                     
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            elif event.type == pygame.MOUSEBUTTONDOWN:
                 btn1, btn2, btn3 = pygame.mouse.get_pressed()
 
                 #Double button check
@@ -197,10 +314,13 @@ class Scene_GamePlay(__Base__):
 
                     if (self.FieldCovered[y][x] == 1):
                         self.FieldCovered[y][x] = 2
+                        self.Sound_FlagIn.play()
                         self.Image_PlayFieldCovered.blit(self.Image_Marked, (x*self.Box_Size,y*self.Box_Size))
-                    else:
+                    else:        
+                        self.Sound_FlagOut.play()
                         self.FieldCovered[y][x] = 1
                         self.Image_PlayFieldCovered.blit(self.Image_Covered, (x*self.Box_Size,y*self.Box_Size))
+                        
                     #Right Click
                     pass
             elif event.type == pygame.MOUSEBUTTONUP:
@@ -234,87 +354,19 @@ class Scene_GamePlay(__Base__):
                         if (self.Field[y][x] == 10):
                             #First click shouldn't boom >:(
                             if (self.GameStart):
-                                self.GameOver = True
+                                self.SetLose()
                             else:
                                 #print("*Something wrong* happened, reset field.")
                                 self.Field_Initalize((x,y))
                             return
                         else:
                             self.OpenEmptySpaces(x,y)
+                            if (not self.GameStart):
+                                self.StartTime = time.time()
                             self.GameStart = True
+
                             
                 self.DoubleButton = False
-                
-    def OpenEmptySpaces(self, x, y):
-      
-        #Open
-        if (self.FieldCovered[y][x] == 0):
-            return
-
-        self.Image_PlayFieldCovered.fill((255,255,255,0), pygame.Rect(x*self.Box_Size,y*self.Box_Size, self.Box_Size, self.Box_Size))
-        
-        self.FieldCovered[y][x] = 0
-        self.BoxLeft -=1
-        if (not self.GameOver):
-            self.CheckWin()
-        #Mines are around, which is dangerous :O
-        if (self.Field[y][x] > 0):
-            return
-
-        #Open boxes around by recursion
-        for y_offset in range(-1,2):
-            for x_offset in range(-1,2):
-
-                if (self.borderCheck(x,y,x_offset,y_offset)):
-                    continue
-                            
-                self.OpenEmptySpaces(x + x_offset, y + y_offset)
-
-    def CheckWin(self):
-        if (self.BoxLeft == self.MineCount):
-            print("You Win!")
-            self.GameOver = True
-        elif (self.BoxLeft < self.MineCount):
-            #thIs Is ssHould not hAppEn
-            print("Wait waht")
-        #print(self.BoxLeft)
-        
-    def OpenByFlag(self,x,y):
-        Flags = 0
-        Num = self.Field[y][x]
-
-        for y_offset in range(-1,2):
-            for x_offset in range(-1,2):
-                if (self.borderCheck(x,y,x_offset,y_offset)):
-                    continue
-
-                nx = x + x_offset
-                ny = y + y_offset
-
-                if (self.FieldCovered[ny][nx] == 2):
-                    Flags += 1
-
-        #Matched flag count, try opening boxes around
-        if (Flags == Num):
-            for y_offset in range(-1,2):
-                for x_offset in range(-1,2):
-                    
-                    if (self.borderCheck(x,y,x_offset,y_offset)):
-                        continue
-
-                    nx = x + x_offset
-                    ny = y + y_offset
-                 
-                    if (self.FieldCovered[ny][nx] == 1):
-                        self.Image_PlayFieldCovered.fill((255,255,255,0), pygame.Rect( (nx*self.Box_Size,ny*self.Box_Size), self.Box_Size_Rect)  )
-                        #Wrong flag!
-                        if (self.Field[ny][nx] == 10):
-                            self.GameOver = True
-                        else:
-                            self.OpenEmptySpaces(nx,ny)
-
-        if (not self.GameOver):
-            self.CheckWin()
             
     def graphicsUpdate(self):
 
@@ -322,16 +374,32 @@ class Scene_GamePlay(__Base__):
             #TODO: pygame_sdl2 or Render support
             pass
         else:
+            pygame.pgSys.Screen.blit(self.CurrentBackground, (0,0))
+            pygame.pgSys.Screen.fill((192,192,192,63), None, pygame.BLEND_RGBA_MULT)
+            
             pygame.pgSys.Screen.blit(self.Image_PlayField, (0,0))
             if (not self.GameOver):
                 pygame.pgSys.Screen.blit(self.Image_PlayFieldCovered, (0,0))
             pygame.pgSys.Screen.blit(self.Image_PlayFieldGrid, (0,0))
-            
-            '''
-            for y in range(self.FieldSize[1]):
-                for x in range(self.FieldSize[0]):
-                    if (self.FieldCovered[y][x]):
-                        pygame.pgSys.Screen.blit(self.Image_Covered, (x*self.Box_Size_Rect, y*self.Box_Size_Rect))
-                    else:
-                        pygame.pgSys.Screen.blit(self.Image_Uncovered_Items[1], (x*self.Box_Size_Rect, y*self.Box_Size_Rect))
-            '''
+
+            #UI Stat
+            if (self.GameStart):
+                if (self.GameOver):
+                    currenttime = int(self.EndTime)
+                else:
+                    currenttime = int(time.time() - self.StartTime)
+            else:
+                currenttime = 0
+
+            image_time = pygame.pgSys.FontLarge.render("TIME :%d" % currenttime, 1, (0,255,0))
+            pygame.pgSys.Screen.blit(image_time, (0,self.Image_PlayField.get_height()))
+
+            #Game set text
+            if (self.GameOver):
+
+                if (self.BoxLeft == self.MineCount):
+                    image_result = pygame.pgSys.FontLarge.render("YOU WIN!", 1, (0,255,255))
+                else:
+                    image_result = pygame.pgSys.FontLarge.render("YOU LOSE.", 1, (255,0,0))
+
+                pygame.pgSys.Screen.blit(image_result, (int((pygame.pgSys.WINDOWWIDTH - image_result.get_width()) /2),self.Image_PlayField.get_height()))
