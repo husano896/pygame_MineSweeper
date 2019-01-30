@@ -1,4 +1,6 @@
-﻿Main process is main.py
+**預計合併回UPG 本Repo封存**
+
+Main process is main.py
 
 Google Noto Fonts
 https://www.google.com/get/noto/
